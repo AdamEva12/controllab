@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ControlLab - 自动控制原理仿真实验平台</title>
+<link rel="stylesheet" href="/static/css/style.css">
+<script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+</head>
+<body>
+
+<div id="app">
+
+<div id="sidebar">
+  <div class="sidebar-header">
+    <h2>系统配置</h2>
+    <p>输入传递函数参数</p>
+  </div>
+
+  <div class="sidebar-section">
+    <h3>输入方式</h3>
+    <div style="display:flex;gap:4px;margin-bottom:12px;">
+      <button class="btn btn-sm" id="btn-poly-mode" style="background:var(--primary);color:white;">多项式系数</button>
+      <button class="btn btn-sm" id="btn-zpk-mode">零极点增益</button>
+    </div>
+
+    <div id="input-poly">
+      <div class="form-group">
+        <label class="form-label">分子系数（降幂）</label>
+        <input class="form-input" id="poly-num" value="1" placeholder="例: 1 或 1 0 (s)">
+      </div>
+      <div class="form-group">
+        <label class="form-label">分母系数（降幂）</label>
+        <input class="form-input" id="poly-den" value="1 0.5 1" placeholder="例: 1 0.5 1 → s²+0.5s+1">
+      </div>
+    </div>
+
+    <div id="input-zpk" style="display:none;">
+      <div class="form-group">
+        <label class="form-label">零点</label>
+        <input class="form-input" id="zpk-zeros" placeholder="例: -1, 0 (留空=无零点)">
+      </div>
+      <div class="form-group">
+        <label class="form-label">极点</label>
+        <input class="form-input" id="zpk-poles" value="-0.25+0.97j, -0.25-0.97j" placeholder="例: -0.25+0.97j, -0.25-0.97j">
+      </div>
+      <div class="form-group">
+        <label class="form-label">增益 K</label>
+        <input class="form-input" id="zpk-gain" value="1" placeholder="传递函数增益">
+      </div>
+    </div>
+
+    <button class="btn btn-primary btn-block" id="btn-build" style="margin-top:8px;">
+      <span id="build-spinner" class="spinner"></span> 构建传递函数
+    </button>
+    <div class="form-error" id="build-error"></div>
+  </div>
+
+  <div class="sidebar-section" id="sys-info-section" style="display:none;">
+    <h3>系统信息</h3>
+    <div id="sys-info"></div>
+  </div>
+
+  <div class="sidebar-section">
+    <h3>快速预设</h3>
+    <div class="preset-list" id="preset-list"></div>
+  </div>
+</div>
+
+<div id="main">
+  <header class="app-header">
+    <div class="app-logo">
+      <div class="icon">CTRL</div>
+      ControlLab
+    </div>
+    <div style="font-size:12px;color:var(--gray-500);">自动控制原理 · 交互式仿真实验平台</div>
+    <div class="app-status">
+      <span class="status-dot" id="status-dot"></span>
+      <span id="status-text">等待系统加载</span>
+    </div>
+  </header>
+
+  <div style="padding:0 24px;">
+    <div class="tabs" id="tab-bar">
+      <button class="tab-btn active" data-tab="tab-time">时域分析</button>
+      <button class="tab-btn" data-tab="tab-rlocus">根轨迹</button>
+      <button class="tab-btn" data-tab="tab-freq">频域分析</button>
+      <button class="tab-btn" data-tab="tab-corr">系统校正</button>
+    </div>
+  </div>
+
+  <div id="main-content">
+
+    <div class="tab-content active" id="tab-time">
+      <div class="flex-between mb-16">
+        <div class="flex gap-8">
+          <button class="btn btn-sm active sub-tab" data-sub="time-step">阶跃响应</button>
+          <button class="btn btn-sm sub-tab" data-sub="time-ramp">斜坡响应</button>
+          <button class="btn btn-sm sub-tab" data-sub="time-accel">加速度响应</button>
+          <button class="btn btn-sm sub-tab" data-sub="time-pz">零极点分布</button>
+        </div>
+        <div class="flex gap-8" style="align-items:center;">
+          <label class="text-sm text-muted">仿真时长:</label>
+          <input class="form-input" id="time-t-end" value="20" style="width:70px;padding:4px 8px;font-size:12px;">
+          <span class="text-sm text-muted">s</span>
+          <button class="btn btn-sm btn-secondary" id="btn-simulate">仿真</button>
+        </div>
+      </div>
+      <div id="time-metrics" class="metrics-grid mb-16"></div>
+      <div class="chart-box"><div id="chart-time" style="height:420px;"></div></div>
+    </div>
+
+    <div class="tab-content" id="tab-rlocus">
+      <div class="flex-between mb-16">
+        <span class="text-sm text-muted">闭环极点随增益 K 变化的轨迹。拖动滑块观察不同增益下的极点位置。</span>
+        <div class="flex gap-8" style="align-items:center;">
+          <label class="text-sm">K:</label>
+          <input class="form-input" id="rl-k-min" value="0.01" style="width:60px;padding:4px 8px;font-size:12px;">
+          <span class="text-sm">~</span>
+          <input class="form-input" id="rl-k-max" value="100" style="width:60px;padding:4px 8px;font-size:12px;">
+          <button class="btn btn-sm btn-secondary" id="btn-rlocus">分析</button>
+        </div>
+      </div>
+      <div class="chart-box"><div id="chart-rlocus" style="height:500px;"></div></div>
+      <div class="flex-between mb-8">
+        <span class="text-sm">当前增益 K:</span>
+        <span class="text-sm text-muted">拖动滑块选择增益，查看对应闭环极点</span>
+      </div>
+      <div style="padding:0 16px;">
+        <input type="range" id="rl-k-slider" min="0" max="1000" value="500" style="width:100%;">
+      </div>
+      <div id="rl-poles-display" class="metrics-grid mt-16"></div>
+    </div>
+
+    <div class="tab-content" id="tab-freq">
+      <div class="flex gap-8 mb-16">
+        <button class="btn btn-sm active sub-tab" data-sub="freq-bode">Bode 图</button>
+        <button class="btn btn-sm sub-tab" data-sub="freq-nyquist">Nyquist 图</button>
+        <button class="btn btn-sm sub-tab" data-sub="freq-margins">稳定裕度</button>
+        <span style="flex:1;"></span>
+        <label class="text-sm">ω:</label>
+        <input class="form-input" id="freq-w-min" value="0.01" style="width:60px;padding:4px 8px;font-size:12px;">
+        <span class="text-sm">~</span>
+        <input class="form-input" id="freq-w-max" value="100" style="width:60px;padding:4px 8px;font-size:12px;">
+        <button class="btn btn-sm btn-secondary" id="btn-freq">分析</button>
+      </div>
+      <div id="freq-bode-view">
+        <div class="chart-box"><div id="chart-bode" style="height:480px;"></div></div>
+      </div>
+      <div id="freq-nyquist-view" style="display:none;">
+        <div class="chart-box"><div id="chart-nyquist" style="height:520px;"></div></div>
+      </div>
+      <div id="freq-margins-view" style="display:none;">
+        <div id="freq-margins-cards" class="metrics-grid mb-16"></div>
+        <div class="panel"><div class="panel-header">稳定裕度设计建议</div>
+          <div class="panel-body text-sm" id="freq-advice"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-content" id="tab-corr">
+      <div class="flex gap-16 mb-16" style="align-items:flex-end;flex-wrap:wrap;">
+        <div class="form-group">
+          <label class="form-label">校正器类型</label>
+          <select class="form-input" id="corr-type" style="width:160px;">
+            <option value="lead">超前校正</option>
+            <option value="lag">滞后校正</option>
+            <option value="lag-lead">滞后-超前校正</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">期望相位裕度</label>
+          <input class="form-input" id="corr-pm" value="50" style="width:80px;">
+        </div>
+        <div class="form-group">
+          <label class="form-label">额外裕量</label>
+          <input class="form-input" id="corr-extra" value="5" style="width:60px;">
+        </div>
+        <button class="btn btn-primary" id="btn-corr-design">设计校正器</button>
+      </div>
+
+      <div id="corr-result" style="display:none;">
+        <div class="correction-card mb-16" id="corr-info"></div>
+
+        <div class="flex gap-8 mb-16">
+          <button class="btn btn-sm active sub-tab" data-sub="corr-step">阶跃响应对比</button>
+          <button class="btn btn-sm sub-tab" data-sub="corr-bode">Bode 图对比</button>
+          <button class="btn btn-sm sub-tab" data-sub="corr-margins">裕度对比</button>
+        </div>
+
+        <div id="corr-step-view">
+          <div class="chart-box"><div id="chart-corr-step" style="height:420px;"></div></div>
+        </div>
+        <div id="corr-bode-view" style="display:none;">
+          <div class="chart-box"><div id="chart-corr-bode" style="height:500px;"></div></div>
+        </div>
+        <div id="corr-margins-view" style="display:none;">
+          <div class="compare-grid" id="corr-margins-compare"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+<div id="toast-container"></div>
+
+<script src="/static/js/app.js"></script>
+</body>
+</html>
